@@ -1,0 +1,5 @@
+{
+  "terminal.integrated.cwd": "${workspaceFolder}/farmer_app_1",
+  "dart.showTodos": false,
+  "cmake.sourceDirectory": "D:/SIH/SIH proto/farmer_app_1/krishisetu_app/linux/runner"
+}
