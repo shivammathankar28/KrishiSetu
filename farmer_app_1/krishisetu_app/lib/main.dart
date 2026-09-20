@@ -5,7 +5,7 @@ import 'dart:async';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
-const String kBaseUrl = "https://stump-emphasis-deck.ngrok-free.dev";
+const String kBaseUrl = "https://krishisetu1-rlyp.onrender.com";
 
 // ---------------------------------------------------------
 // NOTIFICATION SERVICE
