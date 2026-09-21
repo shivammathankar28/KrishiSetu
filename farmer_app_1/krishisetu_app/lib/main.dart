@@ -517,7 +517,6 @@ class _FarmerRegistrationScreenState extends State<FarmerRegistrationScreen> {
   String selectedSlot = "";
   String selectedVehicleType = "Tractor Trolley";
   
-  // Procurement Centers Demo Data
   final List<String> procurementCenters = [
     "Nagpur Central APMC Yard 01",
     "Hingna Sub-Yard 02",
@@ -605,7 +604,6 @@ class _FarmerRegistrationScreenState extends State<FarmerRegistrationScreen> {
               
               Row(children: [ Expanded(child: _buildTextField(controller: landCtrl, label: tr('lbl_land'), type: TextInputType.number)), const SizedBox(width: 10), Expanded(child: _buildTextField(controller: villageCtrl, label: tr('lbl_village'))) ]), const SizedBox(height: 12),
               
-              // Procurement Center Dropdown
               DropdownButtonFormField<String>(
                 value: selectedProcurementCenter,
                 items: procurementCenters.map((center) => DropdownMenuItem(value: center, child: Text(center, style: const TextStyle(fontSize: 13)))).toList(),
@@ -1093,7 +1091,6 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
             
             Row(children: [ Expanded(child: _buildTextField(controller: landCtrl, label: tr('lbl_land'), type: TextInputType.number)), const SizedBox(width: 10), Expanded(child: _buildTextField(controller: villageCtrl, label: tr('lbl_village'))) ]), const SizedBox(height: 12),
             
-            // Procurement Center Dropdown
             DropdownButtonFormField<String>(
               value: selectedProcurementCenter,
               items: procurementCenters.map((center) => DropdownMenuItem(value: center, child: Text(center, style: const TextStyle(fontSize: 13)))).toList(),
