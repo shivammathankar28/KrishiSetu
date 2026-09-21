@@ -409,6 +409,7 @@ async def book_slot(req: SlotBookingRequest, background_tasks: BackgroundTasks):
     if weight > farmer["stock_remaining_at_farm_qtl"]:
         raise HTTPException(status_code=400, detail=f"⚠️ Validation Error: Declared load ({weight} Qtl) exceeds your remaining farm stock!")
 
+    # IMMEDIATELY RESERVE THE SLOT UPON BOOKING
     current_booked = float(slot_occupancy.get(req.preferred_slot, 0.0))
     if current_booked + weight > MANDI_CONFIG["slot_capacity_quintals"]:
         raise HTTPException(status_code=409, detail=f"⚠️ Congestion Alert: Slot '{req.preferred_slot}' is saturated! Select another slot.")
@@ -446,6 +447,8 @@ async def book_slot(req: SlotBookingRequest, background_tasks: BackgroundTasks):
     }
 
     active_tokens[token_id] = token_record
+    
+    # Update occupancy immediately to prevent overbooking before officer decides
     slot_occupancy[req.preferred_slot] += weight
     farmer["stock_remaining_at_farm_qtl"] -= weight
 
@@ -492,6 +495,8 @@ async def officer_decision(req: OfficerDecisionRequest, background_tasks: Backgr
         token["officer_status"] = "REJECTED"
         token["officer_remarks"] = req.remarks or "Mandi quota saturated."
         weight = float(token["weight_quintals"])
+        
+        # Free up the slot capacity since it was rejected
         slot_occupancy[token["allocated_slot"]] = max(0.0, slot_occupancy[token["allocated_slot"]] - weight)
 
         if token["phone_number"] in registered_farmers:
@@ -559,6 +564,7 @@ async def advance_stage(req: TokenAdvanceRequest, background_tasks: BackgroundTa
             token["payment_credited_at"] = datetime.now().strftime("%d-%b-%Y %I:%M %p")
             token["estimated_wait_mins"] = 0
             weight = float(token["weight_quintals"])
+            # Remove from active slot occupancy once completed and cleared
             slot_occupancy[token["allocated_slot"]] = max(0.0, slot_occupancy[token["allocated_slot"]] - weight)
 
             crop = token["commodity"]
@@ -894,11 +900,12 @@ async def serve_dashboard():
                 </button>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <!-- ENHANCED STATS GRID WITH NEW COUNTERS -->
+            <div class="grid grid-cols-2 lg:grid-cols-6 gap-4">
                 <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-3">
                     <div class="p-3 bg-emerald-100 text-emerald-700 rounded-xl text-xl"><i class="fa-solid fa-scale-balanced"></i></div>
                     <div>
-                        <span class="text-[11px] text-slate-500 font-bold uppercase block" data-i18n="card_inflow">Today's Total Inflow</span>
+                        <span class="text-[11px] text-slate-500 font-bold uppercase block" data-i18n="card_inflow">Today's Inflow</span>
                         <span id="marketInflowTotal" class="text-xl font-black text-slate-900">0 Qtl</span>
                     </div>
                 </div>
@@ -906,7 +913,7 @@ async def serve_dashboard():
                 <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-3">
                     <div class="p-3 bg-blue-100 text-blue-700 rounded-xl text-xl"><i class="fa-solid fa-users"></i></div>
                     <div>
-                        <span class="text-[11px] text-slate-500 font-bold uppercase block" data-i18n="card_farmers">Registered Farmers</span>
+                        <span class="text-[11px] text-slate-500 font-bold uppercase block" data-i18n="card_farmers">Reg. Farmers</span>
                         <span id="marketFarmerTotal" class="text-xl font-black text-slate-900">0</span>
                     </div>
                 </div>
@@ -914,18 +921,48 @@ async def serve_dashboard():
                 <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-3">
                     <div class="p-3 bg-amber-100 text-amber-700 rounded-xl text-xl"><i class="fa-solid fa-door-open"></i></div>
                     <div>
-                        <span class="text-[11px] text-slate-500 font-bold uppercase block" data-i18n="card_passes">Active Gate Passes</span>
+                        <span class="text-[11px] text-slate-500 font-bold uppercase block" data-i18n="card_passes">Active Passes</span>
                         <span id="marketActivePasses" class="text-xl font-black text-slate-900">0</span>
+                    </div>
+                </div>
+
+                <!-- NEW: Pending Requests -->
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-3">
+                    <div class="p-3 bg-red-100 text-red-700 rounded-xl text-xl"><i class="fa-solid fa-clock-rotate-left"></i></div>
+                    <div>
+                        <span class="text-[11px] text-slate-500 font-bold uppercase block" data-i18n="card_pending">Pending Requests</span>
+                        <span id="marketPendingTotal" class="text-xl font-black text-slate-900">0</span>
+                    </div>
+                </div>
+
+                <!-- NEW: Accepted Passes -->
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-3">
+                    <div class="p-3 bg-emerald-100 text-emerald-700 rounded-xl text-xl"><i class="fa-solid fa-check-double"></i></div>
+                    <div>
+                        <span class="text-[11px] text-slate-500 font-bold uppercase block" data-i18n="card_accepted">Accepted Passes</span>
+                        <span id="marketAcceptedTotal" class="text-xl font-black text-slate-900">0</span>
                     </div>
                 </div>
 
                 <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-3">
                     <div class="p-3 bg-purple-100 text-purple-700 rounded-xl text-xl"><i class="fa-solid fa-indian-rupee-sign"></i></div>
                     <div>
-                        <span class="text-[11px] text-slate-500 font-bold uppercase block" data-i18n="card_dbt">MSP DBT Settlement</span>
+                        <span class="text-[11px] text-slate-500 font-bold uppercase block" data-i18n="card_dbt">DBT Settlement</span>
                         <span class="text-xl font-black text-purple-700" data-i18n="dbt_direct">100% Direct</span>
                     </div>
                 </div>
+            </div>
+
+            <!-- NEW: LIVE SLOT AVAILABILITY (REMAINING QUANTITY) -->
+            <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+                <div class="flex justify-between items-center mb-4">
+                    <div>
+                        <h2 class="font-bold text-slate-800 text-base" data-i18n="live_slot_title">Live Slot Availability (Immediate Reservation)</h2>
+                        <p class="text-xs text-slate-500" data-i18n="live_slot_sub">Pending and booked requests immediately reduce available space to prevent overbooking.</p>
+                    </div>
+                    <span class="text-xs bg-amber-50 text-amber-700 font-semibold px-2.5 py-1 rounded border border-amber-200" data-i18n="badge_auto_lock">Auto-Lock System</span>
+                </div>
+                <div id="liveSlotAvailabilityGrid" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
             </div>
 
             <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
@@ -1280,11 +1317,16 @@ async def serve_dashboard():
                 tab_registry: "Slot Registry",
                 tab_queue: "Live Queue & Gate Dispatch",
                 tab_tracker: "DBT Payment Ledger",
-                card_inflow: "Today's Total Inflow",
-                card_farmers: "Registered Farmers",
-                card_passes: "Active Gate Passes",
-                card_dbt: "MSP DBT Settlement",
+                card_inflow: "Today's Inflow",
+                card_farmers: "Reg. Farmers",
+                card_passes: "Active Passes",
+                card_pending: "Pending Requests",
+                card_accepted: "Accepted Passes",
+                card_dbt: "DBT Settlement",
                 dbt_direct: "100% Direct",
+                live_slot_title: "Live Slot Availability (Immediate Reservation)",
+                live_slot_sub: "Pending and booked requests immediately reduce available space to prevent overbooking.",
+                badge_auto_lock: "Auto-Lock System",
                 quotas_title: "Mandi Target Quotas vs Current Procured Stock (Required Stock Engine)",
                 quotas_sub: "Government procurement targets assigned to this APMC center by DoCA.",
                 badge_live_quotas: "Live Quotas",
@@ -1394,8 +1436,13 @@ async def serve_dashboard():
                 card_inflow: "आज की कुल आवक",
                 card_farmers: "पंजीकृत किसान",
                 card_passes: "सक्रिय गेट पास",
+                card_pending: "लंबित अनुरोध",
+                card_accepted: "स्वीकृत पास",
                 card_dbt: "MSP DBT निपटान",
                 dbt_direct: "100% प्रत्यक्ष",
+                live_slot_title: "लाइव स्लॉट उपलब्धता (तत्काल आरक्षण)",
+                live_slot_sub: "लंबित और बुक किए गए अनुरोध ओवरबुकिंग को रोकने के लिए तुरंत उपलब्ध स्थान कम कर देते हैं।",
+                badge_auto_lock: "ऑटो-लॉक सिस्टम",
                 quotas_title: "मंडी लक्ष्य कोटा बनाम वर्तमान खरीद स्टॉक (आवश्यक स्टॉक इंजन)",
                 quotas_sub: "DoCA द्वारा इस APMC केंद्र को सौंपे गए सरकारी खरीद लक्ष्य।",
                 badge_live_quotas: "लाइव कोटा",
@@ -1505,8 +1552,13 @@ async def serve_dashboard():
                 card_inflow: "आजची एकूण आवक",
                 card_farmers: "नोंदणीकृत शेतकरी",
                 card_passes: "सक्रिय गेट पास",
+                card_pending: "प्रलंबित विनंत्या",
+                card_accepted: "स्वीकृत पास",
                 card_dbt: "MSP DBT सेटलमेंट",
                 dbt_direct: "100% थेट",
+                live_slot_title: "थेट स्लॉट उपलब्धता (त्वरित आरक्षण)",
+                live_slot_sub: "प्रलंबित आणि बुक केलेल्या विनंत्या ओव्हरबुकिंग टाळण्यासाठी त्वरित उपलब्ध जागा कमी करतात.",
+                badge_auto_lock: "ऑटो-लॉक प्रणाली",
                 quotas_title: "मंडी लक्ष्य कोटा वि वर्तमान खरेदी स्टॉक (आवश्यक स्टॉक इंजिन)",
                 quotas_sub: "DoCA द्वारे या APMC केंद्राला दिलेले सरकारी खरेदी उद्दिष्ट्ये.",
                 badge_live_quotas: "थेट कोटा",
@@ -2059,6 +2111,34 @@ async def serve_dashboard():
             document.getElementById('marketInflowTotal').innerText = `${formatNum(state.total_market_arrivals_today)} Qtl`;
             document.getElementById('marketFarmerTotal').innerText = `${formatNum(state.total_farmers)}`;
             document.getElementById('marketActivePasses').innerText = `${formatNum(state.tokens.filter(tk => tk.officer_status === 'ACCEPTED').length)}`;
+            
+            // Render new stats
+            const pendingCount = state.tokens.filter(tk => tk.officer_status === 'PENDING_APPROVAL').length;
+            const acceptedCount = state.tokens.filter(tk => tk.officer_status === 'ACCEPTED').length;
+            document.getElementById('marketPendingTotal').innerText = `${formatNum(pendingCount)}`;
+            document.getElementById('marketAcceptedTotal').innerText = `${formatNum(acceptedCount)}`;
+
+            // Render Live Slot Availability
+            const slotDiv = document.getElementById('liveSlotAvailabilityGrid');
+            if(slotDiv) {
+                slotDiv.innerHTML = '';
+                for (const [slot, booked] of Object.entries(state.slot_occupancy)) {
+                    const remaining = Math.max(0, state.max_capacity - booked);
+                    let colorClass = 'text-emerald-700';
+                    let bgClass = 'bg-emerald-100';
+                    if(remaining === 0) { colorClass = 'text-red-700'; bgClass = 'bg-red-100'; }
+                    else if (remaining <= 40) { colorClass = 'text-amber-700'; bgClass = 'bg-amber-100'; }
+
+                    slotDiv.innerHTML += `
+                        <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center shadow-sm">
+                            <span class="block text-xs font-bold text-slate-500 mb-1">${slot}</span>
+                            <div class="inline-block p-2 rounded-lg ${bgClass} ${colorClass} text-lg font-black mb-1 w-full border border-white/50 shadow-inner">
+                                ${formatNum(remaining)} Qtl Left
+                            </div>
+                            <span class="block text-[10px] font-semibold text-slate-400">Capacity: ${formatNum(state.max_capacity)} Qtl</span>
+                        </div>`;
+                }
+            }
 
             const quotaDiv = document.getElementById('stockQuotaGrid');
             quotaDiv.innerHTML = '';
