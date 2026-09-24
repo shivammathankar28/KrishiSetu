@@ -1141,7 +1141,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
           crossAxisSpacing: 10,
           mainAxisSpacing: 10,
           shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics,
+          physics: const NeverScrollableScrollPhysics(),
           childAspectRatio: 1.5,
           children: [
             _buildStatCard(tr('stat_inflow'), "${totalBookedInflow.toStringAsFixed(1)} Qtl", Icons.scale, Colors.green),
