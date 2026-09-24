@@ -71,6 +71,7 @@ const Map<String, Map<String, String>> appTranslations = {
     'live_queue': '🚜 Live Mandi Queue Status',
     'farmers_ahead': 'Farmers Ahead',
     'est_wait': 'Est. Wait Time',
+    'tab_market': 'Market Stats',
     'tab_rates': 'Crop Rates',
     'tab_book': 'Book Slot',
     'tab_pass': 'My Gate Pass',
@@ -114,7 +115,16 @@ const Map<String, Map<String, String>> appTranslations = {
     'refresh': 'Refresh',
     'token_id': 'Token ID',
     'farmer_name': 'Farmer Name',
-    'vehicle': 'Vehicle'
+    'vehicle': 'Vehicle',
+    'market_overview_title': 'DoCA APMC Central Procurement Hub',
+    'market_overview_subtitle': 'Live Mandi Statistics & Slot Throttling Engine',
+    'stat_inflow': "Today's Inflow",
+    'stat_capacity': 'Slot Capacity',
+    'stat_hubs': 'Active Hubs',
+    'stat_dbt': 'DBT Settlement',
+    'live_slot_avail': 'Live Slot Availability & Occupancy',
+    'booked_label': 'Booked',
+    'space_left_label': 'Left'
   },
   'hi': {
     'app_title': 'कृषिसेतू ऐप',
@@ -150,6 +160,7 @@ const Map<String, Map<String, String>> appTranslations = {
     'live_queue': '🚜 लाइव मंडी कतार स्थिति',
     'farmers_ahead': 'आगे किसान',
     'est_wait': 'अनुमानित प्रतीक्षा समय',
+    'tab_market': 'मंडी स्थिति',
     'tab_rates': 'फसल दरें',
     'tab_book': 'स्लॉट बुक करें',
     'tab_pass': 'मेरा गेट पास',
@@ -193,7 +204,16 @@ const Map<String, Map<String, String>> appTranslations = {
     'refresh': 'रीफ्रेश',
     'token_id': 'टोकन आईडी',
     'farmer_name': 'किसान का नाम',
-    'vehicle': 'वाहन'
+    'vehicle': 'वाहन',
+    'market_overview_title': 'DoCA एपीएमसी केंद्रीय खरीद केंद्र',
+    'market_overview_subtitle': 'लाइव मंडी आंकड़े और स्लॉट थ्रॉटलिंग इंजन',
+    'stat_inflow': 'आज का कुल आवक',
+    'stat_capacity': 'स्लॉट क्षमता',
+    'stat_hubs': 'सक्रिय हब',
+    'stat_dbt': 'DBT भुगतान',
+    'live_slot_avail': 'लाइव स्लॉट उपलब्धता और ऑक्यूपेंसी',
+    'booked_label': 'बुक किया गया',
+    'space_left_label': 'शेष'
   },
   'mr': {
     'app_title': 'कृषीसेतू ॲप',
@@ -229,6 +249,7 @@ const Map<String, Map<String, String>> appTranslations = {
     'live_queue': '🚜 थेट मार्केट रांग स्थिती',
     'farmers_ahead': 'पुढील शेतकरी',
     'est_wait': 'अंदाजे प्रतीक्षा वेळ',
+    'tab_market': 'बाजार स्थिती',
     'tab_rates': 'पिकांचे भाव',
     'tab_book': 'स्लॉट बुक करा',
     'tab_pass': 'माझा गेट पास',
@@ -272,7 +293,16 @@ const Map<String, Map<String, String>> appTranslations = {
     'refresh': 'रिफ्रेश',
     'token_id': 'टोकन आयडी',
     'farmer_name': 'शेतकऱ्याचे नाव',
-    'vehicle': 'वाहन'
+    'vehicle': 'वाहन',
+    'market_overview_title': 'DoCA एपीएमसी केंद्रीय खरेदी केंद्र',
+    'market_overview_subtitle': 'थेट मार्केट आकडेवारी आणि स्लॉट थ्रॉटलिंग इंजिन',
+    'stat_inflow': 'आजची एकूण आवक',
+    'stat_capacity': 'स्लॉट क्षमता',
+    'stat_hubs': 'सक्रिय हब',
+    'stat_dbt': 'DBT पेमेंट',
+    'live_slot_avail': 'थेट स्लॉट उपलब्धता आणि ऑक्यूपेंसी',
+    'booked_label': 'बुक केलेले',
+    'space_left_label': 'शिल्लक'
   }
 };
 
@@ -824,6 +854,11 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
   List<Map<String, dynamic>> availableSlots = [];
   bool isLoadingSlots = true; bool isHouseFull = false;
 
+  // Market Stats State
+  List<Map<String, dynamic>> availableSlotsForStats = [];
+  bool isLoadingMarketStats = true;
+  double maxSlotCapacity = 120.0;
+
   final Map<String, double> mspRates = { "Soybean": 4892.00, "Wheat": 2275.00, "Paddy (Rice)": 2300.00, "Cotton": 7121.00 };
 
   List<Map<String, String>> get stageMaster => [
@@ -845,9 +880,10 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
     vehicleCountCtrl = TextEditingController(text: "1");
     selectedProcurementCenter = p?['procurement_center'] ?? procurementCenters.first;
 
-    if (widget.initialToken != null) { activeToken = widget.initialToken; isRegistered = true; _selectedTab = 2; }
+    if (widget.initialToken != null) { activeToken = widget.initialToken; isRegistered = true; _selectedTab = 3; }
     
     _fetchAvailableSlots();
+    _fetchMarketStats();
     _startLiveStatusPolling(); _fetchQueuePosition();
   }
 
@@ -873,6 +909,22 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
         }
       }
     } catch (_) { if (mounted) setState(() => isLoadingSlots = false); }
+  }
+
+  Future<void> _fetchMarketStats() async {
+    try {
+      final res = await http.get(Uri.parse('$kBaseUrl/api/v1/slots/available'));
+      if (res.statusCode == 200 && mounted) {
+        final data = jsonDecode(res.body);
+        final slots = List<Map<String, dynamic>>.from(data['slots'] ?? []);
+        setState(() {
+          availableSlotsForStats = slots;
+          isLoadingMarketStats = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => isLoadingMarketStats = false);
+    }
   }
 
   void _startLiveStatusPolling() {
@@ -936,7 +988,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
         );
         final data = jsonDecode(slotRes.body);
         if (slotRes.statusCode == 200) {
-          setState(() { activeToken = data["token"]; _selectedTab = 2; });
+          setState(() { activeToken = data["token"]; _selectedTab = 3; });
           showLocalNotification("Slot Request Sent 📋", "Token sent to Procurement Officer for approval.");
         } else {
           if (!mounted) return;
@@ -1013,24 +1065,167 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
               onChanged: (val) { if (val != null) setState(() => currentLang = val); },
             ),
           ),
-          IconButton(icon: const Icon(Icons.account_circle, size: 28), onPressed: () => setState(() => _selectedTab = 3)), const SizedBox(width: 8),
+          IconButton(icon: const Icon(Icons.account_circle, size: 28), onPressed: () => setState(() => _selectedTab = 4)), const SizedBox(width: 8),
         ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            if (_selectedTab == 0) _buildCropPricesTab(), if (_selectedTab == 1) _buildRegistrationTab(),
-            if (_selectedTab == 2) _buildGatePassTab(), if (_selectedTab == 3) _buildCustomerProfileTab(),
+            if (_selectedTab == 0) _buildMarketOverviewTab(),
+            if (_selectedTab == 1) _buildCropPricesTab(), 
+            if (_selectedTab == 2) _buildRegistrationTab(),
+            if (_selectedTab == 3) _buildGatePassTab(), 
+            if (_selectedTab == 4) _buildCustomerProfileTab(),
           ],
         ),
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedTab, selectedItemColor: const Color(0xFF2E7D32), unselectedItemColor: Colors.grey, type: BottomNavigationBarType.fixed,
-        onTap: (index) { setState(() => _selectedTab = index); if (index == 2 && activeToken != null) { _fetchLatestTokenStatus(); _fetchQueuePosition(); } },
+        onTap: (index) { 
+          setState(() => _selectedTab = index); 
+          if (index == 0) _fetchMarketStats();
+          if (index == 3 && activeToken != null) { _fetchLatestTokenStatus(); _fetchQueuePosition(); } 
+        },
         items: [
-          BottomNavigationBarItem(icon: const Icon(Icons.eco), label: tr('tab_rates')), BottomNavigationBarItem(icon: const Icon(Icons.edit_calendar), label: tr('tab_book')),
-          BottomNavigationBarItem(icon: const Icon(Icons.qr_code_2), label: tr('tab_pass')), BottomNavigationBarItem(icon: const Icon(Icons.person), label: tr('tab_profile')),
+          BottomNavigationBarItem(icon: const Icon(Icons.analytics), label: tr('tab_market')),
+          BottomNavigationBarItem(icon: const Icon(Icons.eco), label: tr('tab_rates')), 
+          BottomNavigationBarItem(icon: const Icon(Icons.edit_calendar), label: tr('tab_book')),
+          BottomNavigationBarItem(icon: const Icon(Icons.qr_code_2), label: tr('tab_pass')), 
+          BottomNavigationBarItem(icon: const Icon(Icons.person), label: tr('tab_profile')),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------
+  // MARKET OVERVIEW TAB (NEW)
+  // ---------------------------------------------------------
+  Widget _buildMarketOverviewTab() {
+    double totalBookedInflow = 0.0;
+    for (var s in availableSlotsForStats) {
+      double spaceLeft = (s['space_left_qtl'] as num?)?.toDouble() ?? 120.0;
+      double booked = maxSlotCapacity - spaceLeft;
+      if (booked < 0) booked = 0;
+      totalBookedInflow += booked;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(colors: [Color(0xFF2E7D32), Color(0xFF4CAF50)]),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [BoxShadow(color: Colors.black.withAlpha(20), blurRadius: 8, offset: const Offset(0, 3))],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                tr('market_overview_title'),
+                style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                tr('market_overview_subtitle'),
+                style: TextStyle(color: Colors.white.withAlpha(220), fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        GridView.count(
+          crossAxisCount: 2,
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 10,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics,
+          childAspectRatio: 1.5,
+          children: [
+            _buildStatCard(tr('stat_inflow'), "${totalBookedInflow.toStringAsFixed(1)} Qtl", Icons.scale, Colors.green),
+            _buildStatCard(tr('stat_capacity'), "${maxSlotCapacity.toStringAsFixed(0)} Qtl/Window", Icons.door_sliding, Colors.blue),
+            _buildStatCard(tr('stat_hubs'), "3 Sub-Yards", Icons.hub, Colors.orange),
+            _buildStatCard(tr('stat_dbt'), "100% Direct", Icons.currency_rupee, Colors.purple),
+          ],
+        ),
+        const SizedBox(height: 20),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(tr('live_slot_avail'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+            IconButton(
+              icon: const Icon(Icons.refresh, color: Color(0xFF2E7D32)),
+              onPressed: _fetchMarketStats,
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        if (isLoadingMarketStats)
+          const Center(child: Padding(padding: EdgeInsets.all(30), child: CircularProgressIndicator()))
+        else if (availableSlotsForStats.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(10)),
+            child: Text(tr('house_full_alert'), style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+          )
+        else
+          ...availableSlotsForStats.map((s) {
+            String slotName = s['slot'] ?? '';
+            double spaceLeft = (s['space_left_qtl'] as num?)?.toDouble() ?? 0.0;
+            double booked = maxSlotCapacity - spaceLeft;
+            if (booked < 0) booked = 0;
+            double pct = (booked / maxSlotCapacity).clamp(0.0, 1.0);
+            Color barColor = pct > 0.8 ? Colors.red : (pct > 0.5 ? Colors.orange : Colors.green);
+
+            return Card(
+              elevation: 1,
+              margin: const EdgeInsets.only(bottom: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(slotName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        Text("${spaceLeft.toStringAsFixed(1)} Qtl ${tr('space_left_label')}", style: TextStyle(fontWeight: FontWeight.bold, color: barColor, fontSize: 12)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    LinearProgressIndicator(value: pct, color: barColor, backgroundColor: Colors.grey.shade200, minHeight: 8),
+                    const SizedBox(height: 6),
+                    Text("${tr('booked_label')}: ${booked.toStringAsFixed(1)} / ${maxSlotCapacity.toStringAsFixed(0)} Qtl", style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                  ],
+                ),
+              ),
+            );
+          }),
+      ],
+    );
+  }
+
+  Widget _buildStatCard(String title, String value, IconData icon, MaterialColor color) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [BoxShadow(color: Colors.black.withAlpha(5), blurRadius: 5, offset: const Offset(0, 2))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: color.shade700, size: 22),
+          const SizedBox(height: 6),
+          Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 2),
+          Text(title, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
         ],
       ),
     );
@@ -1058,7 +1253,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
         )),
         const SizedBox(height: 16),
         ElevatedButton(
-          onPressed: () => setState(() => _selectedTab = 1),
+          onPressed: () => setState(() => _selectedTab = 2),
           style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2E7D32), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
           child: Text(tr('btn_book_now'), style: const TextStyle(fontWeight: FontWeight.bold)),
         )
